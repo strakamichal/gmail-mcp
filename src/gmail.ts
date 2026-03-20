@@ -1,5 +1,51 @@
 import type { gmail_v1 } from "@googleapis/gmail";
 
+export interface AttachmentMeta {
+  attachmentId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+}
+
+export function extractAttachments(
+  payload: gmail_v1.Schema$MessagePart | undefined
+): AttachmentMeta[] {
+  const attachments: AttachmentMeta[] = [];
+  if (!payload) return attachments;
+
+  function walk(part: gmail_v1.Schema$MessagePart) {
+    if (part.filename && part.body?.attachmentId) {
+      attachments.push({
+        attachmentId: part.body.attachmentId,
+        filename: part.filename,
+        mimeType: part.mimeType ?? "application/octet-stream",
+        size: part.body.size ?? 0,
+      });
+    }
+    if (part.parts) {
+      for (const child of part.parts) {
+        walk(child);
+      }
+    }
+  }
+
+  walk(payload);
+  return attachments;
+}
+
+export async function getAttachment(
+  gmail: gmail_v1.Gmail,
+  messageId: string,
+  attachmentId: string
+): Promise<string> {
+  const res = await gmail.users.messages.attachments.get({
+    userId: "me",
+    messageId,
+    id: attachmentId,
+  });
+  return res.data.data ?? "";
+}
+
 export interface MessageHeaders {
   from: string;
   to: string;
